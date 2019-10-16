@@ -37,13 +37,17 @@ class Pendulum:
         self.prev_length = self.wave_phi.shape[0]
         self.entire_t = np.arange(0, self.dt * self.prev_length + self.max_t, self.dt)
 
+        self.delta = 0
         if attributes['delta_mode_adaptive']:
-            self.delta_adaptively_control = True
+            self.delta_adaptively_control_on = True
             self.delta_adaptive_const = attributes.get('delta_adaptive_const', 0.15)
-            self.delta_adaptive = []
+            self.delta_adaptive = 0
+            self.delta_adaptive_working = False
+
         if attributes['delta_mode_asymptotic']:
-            self.delta_asymptotically_control = True
+            self.delta_asymptotically_control_on = True
             self.delta_asymptotic = attributes.get('delta_asymptotic_amplitude', 0.1)
+            self.delta_asymptotic_working = False
 
         self.oscillating_phi = np.zeros(self.steps)
         self.oscillating_dphi = np.zeros(self.steps)
@@ -105,17 +109,21 @@ class Pendulum:
         return x_dot
 
     def length_update(self, x):
-        L = self.l0 * (1 + self.delta_asymptotic * x[0] * x[1])
-        Ldot = self.l0 * self.delta_asymptotic * (x[1]**2 + x[0]*x[2])
+        if self.delta_asymptotic_working and not self.delta_adaptive_working:
+            self.delta = self.delta_asymptotic
+        elif self.delta_adaptive_working and not self.delta_asymptotic_working:
+            self.delta = self.delta_adaptive
+        else:
+            raise ValueError('Neither asymptotic nor adaptive works now!')
+
+        L = self.l0 * (1 + self.delta * x[0] * x[1])
+        Ldot = self.l0 * self.delta * (x[1]**2 + x[0]*x[2])
         L = np.clip(L, self.Lmin, self.Lmax)
         if L == self.Lmin or L == self.Lmax:
             Ldot = 0
         else:
             Ldot = np.clip(Ldot, self.Ldotmin, self.Ldotmax)
         return L, Ldot
-
-    def adaptive_length_update(self, x):
-        # TODO
 
     def delta_update(self):
         # TODO
@@ -139,22 +147,24 @@ class Pendulum:
             self.oscillating_phi[step], self.oscillating_dphi[step] = self.time_marching(state, self.fixed_length_eom)
 
     def control_pendulum_oscillation(self):
+        self.delta_asymptotic_working = True
         for step, t in enumerate(self.time):
-
             if step == 0:
                 state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1]))
                 full_state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1], self.wave_ddphi[-1]))
             else:
                 state = np.hstack((self.control_phi[step - 1], self.control_dphi[step - 1]))
                 full_state = np.hstack((self.control_phi[step - 1], self.control_dphi[step - 1], self.control_ddphi[step - 1]))
-
+            self.delta_update()
             self.control_length[step], self.control_dlength[step] = self.length_update(full_state)
             length = np.hstack((self.control_length[step], self.control_dlength[step]))
             self.update_ddphi(state, length, step)
             func = partial(self.variable_length_eom, input=length)
             self.control_phi[step], self.control_dphi[step] = self.time_marching(state, func)
+        self.delta_asymptotic_working = False
 
     def adaptive_control_pendulum_oscillation(self):
+        self.delta_adaptive_working = True
         for step, t in enumerate(self.time):
             if step == 0:
                 state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1]))
@@ -169,6 +179,7 @@ class Pendulum:
             self.update_ddphi(state, length, step)
             func = partial(self.variable_length_eom, input=length)
             self.control_phi[step], self.control_dphi[step] = self.time_marching(state, func)
+        self.delta_adaptive_working = False
 
     # def main(self):
 
