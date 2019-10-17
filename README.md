@@ -1,7 +1,8 @@
-# Variable Lengt Oscillating Pendulum
-This is a repo that implements variable length oscillating pendulum
+# Stabilize Variable-Length Oscillating Pendulum
+This is a repo that implements variable length oscillating pendulum.
+
 ## How to use
-Under the root directory, run the file
+Under the root directory, run the file in terminal:
 ```
 python3 pendulum_simulation.py
 ```
