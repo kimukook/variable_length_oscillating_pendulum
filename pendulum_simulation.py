@@ -56,16 +56,19 @@ class Pendulum:
             self.delta_asymptotically_control_on = False
         self.delta_asymptotic_working = False
 
+        # oscillating control sequence
         self.oscillating_phi = np.zeros(self.steps)
         self.oscillating_dphi = np.zeros(self.steps)
         self.oscillating_ddphi = np.zeros(self.steps)
 
+        # asymptotic control parameters sequence
         self.asym_control_phi = np.zeros(self.steps)
         self.asym_control_dphi = np.zeros(self.steps)
         self.asym_control_ddphi = np.zeros(self.steps)
         self.asym_control_length = np.zeros(self.steps)
         self.asym_control_dlength = np.zeros(self.steps)
 
+        # adaptive control parameters sequence
         self.adap_control_phi = np.zeros(self.steps)
         self.adap_control_dphi = np.zeros(self.steps)
         self.adap_control_ddphi = np.zeros(self.steps)
@@ -73,15 +76,21 @@ class Pendulum:
         self.adap_control_dlength = np.zeros(self.steps)
         self.adap_delta_sequence = np.zeros(self.steps)
 
+        # The pendulum length and length derivative at each time step
         self.L = self.l0
         self.dL = 0
+        # The time marching scheme could be used, Forward Euler or RK4
         self.time_marching_method = 2
 
+        # The root folder path and images folder path
         self.ROOT_PATH = os.getcwd()
         self.IMG_PATH = os.path.join(self.ROOT_PATH, 'images')
-        self.ylim = self.amplitude * 1.1
+        #
+        self.ylim = np.max(self.wave_phi) * 1.1
+        # save fig and show fig indicator
         self.save_fig = attributes.get('save_fig', True)
         self.show_fig = attributes.get('show_fig', True)
+        # saving picture in designated format
         self.format_fig = '.png'
 
     # ====================================   EQUATION OF MOTION   ====================================
@@ -132,32 +141,14 @@ class Pendulum:
         else:
             raise ValueError('Neither asymptotic nor adaptive works now!')
 
-        L = self.l0 * (1 + self.delta * x[0] * x[1])
-        Ldot = self.l0 * self.delta * (x[1]**2 + x[0]*x[2])
+        self.dL = self.l0 * self.delta * (x[1]**2 + x[0]*x[2])
         # L and Ldot constraints bound
-        L = np.clip(L, self.Lmin, self.Lmax)
-        if L == self.Lmin or L == self.Lmax:
+        self.dL = np.clip(self.dL, self.Ldotmin, self.Ldotmax)
+        self.L += self.dt * self.dL
+        self.L = np.clip(self.L, self.Lmin, self.Lmax)
+        if self.L == self.Lmin or self.L == self.Lmax:
             Ldot = 0
-        else:
-            Ldot = np.clip(Ldot, self.Ldotmin, self.Ldotmax)
-        return L, Ldot
-
-    # def length_update(self, x, L):
-    #     if self.delta_asymptotic_working:
-    #             self.delta = self.delta_asymptotic
-    #         elif self.delta_adaptive_working:
-    #             self.delta = self.delta_adaptive
-    #         else:
-    #             raise ValueError('Neither asymptotic nor adaptive works now!')
-    #
-    #     Ldot = self.l0 * self.delta * (x[1]**2 + x[0]*x[2])
-    #     # L and Ldot constraints bound
-    #     Ldot = np.clip(Ldot, self.Ldotmin, self.Ldotmax)
-    #     L += self.dt * Ldot
-    #     L = np.clip(L, self.Lmin, self.Lmax)
-    #     if L == self.Lmin or L == self.Lmax:
-    #         Ldot = 0
-    #     return L, Ldot
+        return self.L, self.dL
 
     def delta_update(self, t):
         # combine dphi with dphi before control starts
@@ -399,6 +390,9 @@ if __name__ == "__main__":
     t_length = dt * 130 * 20
     t = np.arange(0, t_length, dt)
 
+    # 3rd:
+
+    # 2nd: cos + sin wave
     wave = {
         'amplitude': a,
         'frequency': w0,
@@ -406,6 +400,14 @@ if __name__ == "__main__":
         'dphi': a * w0 * np.cos(w0 * t) - a * w0 * np.sin(w0 * t),
         'ddphi': -a * w0**2 * np.sin(w0 * t) - a * w0**2 * np.cos(w0 * t)
     }
+    # 1st: simple sin wave
+    # wave = {
+    #     'amplitude': a,
+    #     'frequency': w0,
+    #     'phi': a * np.sin(w0 * t),
+    #     'dphi': a * w0 * np.cos(w0 * t),
+    #     'ddphi': -a * w0**2 * np.sin(w0 * t)
+    # }
 
     attributes = {
         'max_t': T,
