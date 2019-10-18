@@ -12,3 +12,4 @@ python3 pendulum_simulation.py
 ![2](/images/phi_dphi.png)
 ![3](/images/length.png)
 ![4](/images/dlength.png)
+![5](/images/delta.png)
