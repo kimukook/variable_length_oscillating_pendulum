@@ -13,3 +13,5 @@ python3 pendulum_simulation.py
 ![3](/images/length.png)
 ![4](/images/dlength.png)
 ![5](/images/delta.png)
+![6](/LF_contour.png)
+![7](/vector_field.png)
