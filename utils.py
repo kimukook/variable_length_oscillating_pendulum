@@ -6,12 +6,12 @@ def consecutive(data, stepsize=1):
 
 
 def last_consecutives(vals, step=1):
-    '''
+    """
     Find the last consecutive group of numbers
-    :param vals:
-    :param step:
-    :return:
-    '''
+    :param vals:  Array, store numbers
+    :param step:  Step size for consecutive numberes, default 1
+    :return:      The last group of consecutive numbers of the input vals
+    """
     group = []
     expected = None
     for val in reversed(vals):
@@ -21,4 +21,3 @@ def last_consecutives(vals, step=1):
             break
         expected = val - step
     return group
-
