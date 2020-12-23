@@ -3,7 +3,7 @@ import utils
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import partial
-
+from scipy import io
 
 '''
 This is a script that simulates the movement of variable-length pendulum.
@@ -93,58 +93,57 @@ class Pendulum:
 
         self.wave_phi = wave['phi']
         self.wave_dphi = wave['dphi']
-        self.wave_ddphi = wave['ddphi']
 
         self.frequency = wave.get('frequency', np.pi/2)
         self.control_start_time = self.dt * self.wave_phi.shape[0]
         self.prev_length = self.wave_phi.shape[0]
         self.entire_t = np.arange(0, self.dt * self.prev_length + self.max_t, self.dt)
 
+        self.pose_constrain_L = attributes.get('constrain_L', False)
+
         # initiate the Asymptotic control mode
-        if attributes['asymptotic_mode']:
-            self.asymptotic_control_on = True
+        self.asymptotic_control_on = attributes.get('asymptotic_mode', True)
+        if self.asymptotic_control_on:
             self.delta = attributes.get('delta_asymptotic_const', 0.2)
 
             # asymptotic control parameters sequence
             self.asym_control_phi = np.zeros(self.steps)
-            self.asym_control_phi[0] = np.copy(self.wave_phi[-1])
-
             self.asym_control_dphi = np.zeros(self.steps)
-            self.asym_control_dphi[0] = np.copy(self.wave_dphi[-1])
 
-            self.asym_control_ddphi = np.zeros(self.steps)
+            # self.asym_control_ddphi = np.zeros(self.steps)
             self.asym_control_L = np.zeros(self.steps)
             self.asym_control_L[0] = self.l0
             self.asym_control_dL = np.zeros(self.steps)
 
         else:
-            self.asymptotic_control_on = False
+            pass
 
         # initiate the Adaptive control mode
-        if attributes['adaptive_mode']:
-            self.adaptive_control_on = True
+        self.adaptive_control_on = attributes.get('adaptive_mode', False)
+        if self.adaptive_control_on:
             self.delta_adaptive_const = attributes.get('delta_adaptive_const', 0.15)
             self.delta = attributes.get('delta_adaptive_const', 0.2)
 
             # adaptive control parameters sequence
             self.adap_control_phi = np.zeros(self.steps)
-            self.adap_control_phi[0] = np.copy(self.wave_phi[-1])
-
             self.adap_control_dphi = np.zeros(self.steps)
-            self.adap_control_dphi[0] = np.copy(self.wave_dphi[-1])
 
-            self.adap_control_ddphi = np.zeros(self.steps)
+            # self.adap_control_ddphi = np.zeros(self.steps)
             self.adap_control_length = np.zeros(self.steps)
             self.adap_control_dlength = np.zeros(self.steps)
 
             self.adap_delta_sequence = np.zeros(self.steps)
         else:
-            self.adaptive_control_on = False
+            pass
 
+        self.no_control_on = attributes.get('no_control_mode', False)
         # oscillating control sequence
-        self.oscillating_phi = np.zeros(self.steps)
-        self.oscillating_dphi = np.zeros(self.steps)
-        self.oscillating_ddphi = np.zeros(self.steps)
+        if self.no_control_on:
+            self.oscillating_phi = np.zeros(self.steps)
+            self.oscillating_dphi = np.zeros(self.steps)
+            self.oscillating_ddphi = np.zeros(self.steps)
+        else:
+            pass
 
         # The pendulum length and length derivative at the current time step
         self.L = self.l0
@@ -161,10 +160,12 @@ class Pendulum:
         self.plot_trigger = attributes.get('plot', False)
         self.ylim = np.max(self.wave_phi) * 1.1
         # save fig and show fig indicator
-        self.save_fig = attributes.get('save_fig', True)
-        self.show_fig = attributes.get('show_fig', True)
+        self.save_fig = attributes.get('save_fig', False)
+        self.show_fig = attributes.get('show_fig', False)
         # saving picture in designated format
         self.format_fig = attributes.get('format_fig', '.png')
+        # save data
+        self.save_data = attributes.get('save_data', True)
 
     # ====================================   EQUATION OF MOTION   ====================================
     def fixed_length_eom(self, x):
@@ -202,53 +203,39 @@ class Pendulum:
         states = [x0, x1]' = [phi, dphi]'
         :return:
         '''
-        # compute the length and length derivative at each single point x
-        L = self.compute_length(x)
-
         # Here we can't directly compute Ldot, otherwise it would fall into infinite loop.
         # Use Ldot = L0*delta*([d(phi)/dt]^2 + phi * d^2(phi)/dt^2), plug it back into the system dynamic
+        L = self.compute_length(x)
+
         f = np.empty((2, ))
         f[0] = x[1]
-        f[1] = (-2 * self.l0 * self.delta * x[1]**3 - self.g * np.sin(x[0])) / \
-               (L + 2 * self.l0 * self.delta * x[0] * x[1])
+        if abs(1 + 3 * self.delta * x[0] * x[1]) > 1e-4:
+            # Regarding the expression to compute f[1], use L instead of plugging L=L0[1+delta*phi*d(phi/dt)] directly,
+            # easier to add constrain on L(t)
+            f[1] = (-2 * self.l0 * self.delta * x[1]**3 - self.g * np.sin(x[0])) / \
+                   (L + self.l0 * (1 + 3 * self.delta * x[0] * x[1]))
+        else:
+            f[1] = 0
+            print('Invalid values for denominator encountered in the computation of variable-length equation of motion')
+            print('Set it to be 0 temporarily.')
         return f
 
     def compute_length(self, x):
-        # TODO add constrain on L
-        return self.l0 * (1 + self.delta * x[0] * x[1])
+        L = self.l0 * (1 + self.delta * x[0] * x[1])
+        if self.pose_constrain_L:
+            L = np.clip(L, self.Lmin, self.Lmax)
+        else:
+            pass
+        return L
 
     def compute_length_dot(self, x):
-        # TODO add constrain on Ldot
         f = self.variable_length_eom(x)
-        return self.l0 * self.delta * (x[1]**2 + x[0]*f[1])
-
-    # def length_update(self, x):
-    #     if self.asymptotic_control_on:
-    #         self.delta = self.delta_asymptotic
-    #     elif self.adaptive_control_on:
-    #         self.delta = self.delta_adaptive
-    #     else:
-    #         raise ValueError('Neither asymptotic nor adaptive works now!')
-    #     self.dL = self.l0 * self.delta * (x[1]**2 + x[0] * x[2])
-    #     # L and Ldot constraints bound
-    #     self.dL = np.clip(self.dL, self.Ldotmin, self.Ldotmax)
-    #
-    #     # Constraint on control input, Dlength
-    #     if self.dL - self.Ldotmin < 1e-6 or self.Ldotmax - self.dL < 1e-6:
-    #         self.dL = np.clip(self.dL, self.Ldotmin, self.Ldotmax)
-    #     else:
-    #         pass
-    #
-    #     self.L += self.dt * self.dL
-    #     # Constraint on control input, length
-    #     if self.L - self.Lmin < 1e-6 or self.Lmax - self.L < 1e-6:
-    #         self.L = np.clip(self.L, self.Lmin, self.Lmax)
-    #         # At this point, though the actual length of the pendulum is bounded, we would like Ldot not to be 0
-    #         # otherwise, the calculation of ddphi will be totally incorrect.
-    #     else:
-    #         pass
-    #
-    #     return self.L, self.dL
+        Ldot = self.l0 * self.delta * (x[1]**2 + x[0]*f[1])
+        if self.pose_constrain_L:
+            Ldot = np.clip(Ldot, self.Ldotmin, self.Ldotmax)
+        else:
+            pass
+        return Ldot
 
     def delta_update(self, t):
         """
@@ -272,9 +259,6 @@ class Pendulum:
             self.delta_adaptive = self.delta_adaptive_const / 1
         self.adap_delta_sequence[t] = np.copy(self.delta_adaptive)
 
-    # def update_ddphi(self, state, length):
-    #     return (-2 * length[1] * state[1] - self.g * np.sin(state[0])) / length[0]
-
     # ====================================   MAIN SCRIPT   ====================================
     def free_pendulum_oscillation(self):
         '''
@@ -291,20 +275,18 @@ class Pendulum:
             self.oscillating_phi[step], self.oscillating_dphi[step] = self.time_marching(state, self.fixed_length_eom)
 
     def asymptotic_control_pendulum_oscillation(self):
-        for i in range(self.steps-1):
+        for i in range(self.steps):
+            if i == 0:
+                state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1]))
+            else:
+                state = np.hstack((self.asym_control_phi[i-1], self.asym_control_dphi[i-1]))
 
-            # this is for test
-            if (i+1) % 1000 == 0:
-                print(f'{i+1} control steps complete...')
-
-            state = np.hstack((self.asym_control_phi[i], self.asym_control_dphi[i]))
             # update the length of the pendulum
-            self.asym_control_L[i + 1] = self.compute_length(state)
-            self.asym_control_dL[i + 1] = self.compute_length_dot(state)
+            self.asym_control_L[i] = self.compute_length(state)
+            self.asym_control_dL[i] = self.compute_length_dot(state)
 
             # time marching the system dynamic
-            self.asym_control_phi[i+1], self.asym_control_dphi[i+1] = self.time_marching(state, self.variable_length_eom)
-
+            self.asym_control_phi[i], self.asym_control_dphi[i] = self.time_marching(state, self.variable_length_eom)
 
     def adaptive_control_pendulum_oscillation(self):
         for step, _ in enumerate(self.time):
@@ -334,7 +316,10 @@ class Pendulum:
             self.adap_control_phi[step], self.adap_control_dphi[step] = self.time_marching(state, func)
 
     def main(self):
-        self.free_pendulum_oscillation()
+        if self.no_control_on:
+            self.free_pendulum_oscillation()
+        else:
+            pass
 
         # invoke the asymptotic control
         if self.asymptotic_control_on:
@@ -354,7 +339,12 @@ class Pendulum:
         else:
             pass
 
+        # save data
+        if self.save_data:
+            self.data_saver()
+
     # ====================================   TIME MARCHING SCHEME   ====================================
+
     def forward_euler(self, x, func):
         x_dot = func(x)
         x_new = x + x_dot * self.dt
@@ -387,7 +377,7 @@ class Pendulum:
         self.phase_space_plot()
         self.length_plot()
         # self.delta_plot()
-        self.phi_dphi_time_plot()
+        # self.phi_dphi_time_plot()
         self.energy_plot()
         # self.frequency_plot()
 
@@ -395,7 +385,8 @@ class Pendulum:
         plt.figure(figsize=[16, 9])
         plt.grid()
         self.control_indicator_plot()
-        self.free_pendulum_plot()
+        if self.no_control_on:
+            self.free_pendulum_plot()
         self.control_pendulum_plot()
         plt.legend()
         self.fig_save_and_show('phi')
@@ -422,17 +413,29 @@ class Pendulum:
     def phase_space_plot(self):
         # 2D phase plot
         plt.figure(figsize=[16, 9])
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.grid()
         plt.scatter(self.asym_control_phi[0], self.asym_control_dphi[0], c='b', marker='s', label='initial')
+        asym_x_range = asym_y_range = adap_x_range = adap_y_range = np.ones(1)
+
         if self.asymptotic_control_on:
             # plot the asymptotic convergence of phi(t)
             plt.plot(self.asym_control_phi, self.asym_control_dphi, 'r--', label='Asymptotic')
             self.phase_space_arrow_plot(self.asym_control_phi, self.asym_control_dphi)
+            asym_x_range = np.ptp(self.asym_control_phi, axis=0)
+            asym_y_range = np.ptp(self.asym_control_dphi, axis=0)
 
         if self.adaptive_control_on:
             # plot the exponential convergence of phi(t)
             plt.plot(self.adap_control_phi, self.adap_control_dphi, 'k--', label='Adaptive')
             self.phase_space_arrow_plot(self.asym_control_phi, self.asym_control_dphi)
+            adap_x_range = np.ptp(self.adap_control_phi, axis=0)
+            adap_y_range = np.ptp(self.adap_control_dphi, axis=0)
+
+        r = np.max(np.hstack((adap_y_range, asym_y_range, adap_x_range, asym_x_range))) * 1.2
+
+        plt.ylim(0 - r / 2, 0 + r/2)
+        plt.xlim(0 - r / 2, 0 + r/2)
 
         plt.xlabel(r'$\phi(t)$', fontsize=21)
         plt.ylabel(r'$\dot{\phi}(t)$', fontsize=21, rotation=0)
@@ -450,7 +453,7 @@ class Pendulum:
 
         for num, pos in enumerate(arrow_position_sequence[1:]):
             plt.annotate('', xy=(phi[pos+1], dphi[pos+1]), xytext=(phi[pos], dphi[pos]),
-                         arrowprops={'arrowstyle': '->, head_width=1, head_length=3', 'color': 'r'}, va='center')
+                         arrowprops={'arrowstyle': '->, head_width=.5, head_length=1.5', 'color': 'r'}, va='center')
 
     def phi_dphi_time_plot(self):
         # Debug use
@@ -565,16 +568,23 @@ class Pendulum:
         if self.show_fig:
             plt.show()
 
+    def data_saver(self):
+        data = {
+            'asym_phi': self.asym_control_phi,
+            'asym_dphi': self.asym_control_dphi,
+            'asym_L': self.asym_control_L,
+            'asym_dL': self.asym_control_dL
+        }
+        io.savemat('pendulum_data.mat', data)
+
 
 if __name__ == "__main__":
-    a = 2
     # T: total control time
     T = 10
     dt = 0.02
     g = 9.8
     m = 1
     l = 1
-    w0 = np.sqrt(g / l)
 
     # t_length: time length before control starts
     t_length = dt
@@ -582,36 +592,34 @@ if __name__ == "__main__":
 
     # 1st: simple sin wave
     # signal = {
-    #     'amplitude': a,
-    #     'frequency': w0,
     #     'phi': a * np.sin(w0 * t),
     #     'dphi': a * w0 * np.cos(w0 * t),
-    #     'ddphi': -a * w0**2 * np.sin(w0 * t)
     # }
 
     signal = {
-        'phi': np.pi/2 * np.ones(1),
-        'dphi': np.zeros(1),
-        'ddphi': np.zeros(1)
+        'phi': -2 * np.ones(1),
+        'dphi': 3 * np.ones(1),
     }
 
     properties = {
         'm': m,
         'max_t': T,
         'dt': dt,
-        'plot': True,
-        'save_fig': True,
-        'show_fig': False,
         'adaptive_mode': False,
         'delta_adaptive_const': .15,
         'asymptotic_mode': True,
         'delta_asymptotic_const': .05,
-        'l0': 1,
+        'l0': l,
+        'constrain_L': True,
         'Ldotmax': 5,
         'Ldotmin': -5,
         'Lmax': 1.5,
-        'Lmin': 0.5
-
+        'Lmin': 0.5,
+        'g': g,
+        'plot': True,
+        'save_fig': True,
+        'show_fig': False,
+        'save_data': False,
     }
     # ================
     pendu = Pendulum(signal, properties)
