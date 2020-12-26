@@ -101,6 +101,8 @@ class Pendulum:
 
         self.pose_constrain_L = attributes.get('constrain_L', False)
 
+        # Below is an untested idea:
+        self.delta_shrinkage = .8
         # initiate the Asymptotic control mode
         self.asymptotic_control_on = attributes.get('asymptotic_mode', True)
         if self.asymptotic_control_on:
@@ -209,13 +211,15 @@ class Pendulum:
 
         f = np.empty((2, ))
         f[0] = x[1]
-        if abs(1 + 3 * self.delta * x[0] * x[1]) > 1e-4:
+        if abs(L + self.l0 * (1 + 3 * self.delta * x[0] * x[1])) > 1e-4:
             # Regarding the expression to compute f[1], use L instead of plugging L=L0[1+delta*phi*d(phi/dt)] directly,
             # easier to add constrain on L(t)
             f[1] = (-2 * self.l0 * self.delta * x[1]**3 - self.g * np.sin(x[0])) / \
                    (L + self.l0 * (1 + 3 * self.delta * x[0] * x[1]))
         else:
             f[1] = 0
+            # f[1] = (-2 * self.l0 * self.delta * x[1]**3 - self.g * np.sin(x[0])) / \
+            #        (L + self.l0 * (1 + 3 * self.delta_shrinkage * self.delta * x[0] * x[1]))
             print('Invalid values for denominator encountered in the computation of variable-length equation of motion')
             print('Set it to be 0 temporarily.')
         return f

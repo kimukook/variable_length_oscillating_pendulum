@@ -45,8 +45,8 @@ def compute_vector_field(vary_length_pendulum, states):
 size = 10
 width = 2
 # define the region of interest
-x, y = np.meshgrid(np.linspace(-2, 2, size), np.linspace(-4, 3, size))
-# x, y = np.meshgrid(np.linspace(-width, width, size), np.linspace(-width, width, size))
+# x, y = np.meshgrid(np.linspace(-2, 2, size), np.linspace(-4, 3, size))
+x, y = np.meshgrid(np.linspace(-width, width, size), np.linspace(-width, width, size))
 # define the field vector (u, v) of each point
 u, v = np.zeros(x.shape), np.zeros(x.shape)
 
