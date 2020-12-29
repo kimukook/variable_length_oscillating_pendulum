@@ -116,7 +116,7 @@ phi = data['asym_phi']
 dphi = data['asym_dphi']
 plt.plot(phi[0], dphi[0], 'r--', label='Asymptotic', zorder=1)
 
-plt.savefig('vector_field.png', format='png', dpi=300)
-
+# plt.savefig('vector_field.png', format='png', dpi=300)
+#
 plt.show()
 plt.close(fig)
