@@ -110,7 +110,7 @@ for i in range(x.shape[0]):
         }
 
         pending_pendulum = Pendulum(wave, attributes)
-        # find the LF value of each point
+        # find the LF value each point
         W[i, j] = compute_total_energy_LF(pending_pendulum)
         dW[i, j] = compute_total_energy_LF_derivative(pending_pendulum)
 

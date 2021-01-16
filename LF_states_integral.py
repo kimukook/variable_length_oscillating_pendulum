@@ -53,7 +53,6 @@ def compute_lyapunov_function_values(vary_length_pendulum, d):
 
 # Define the attributes for the variable-length pendulum problem
 d = .2
-T = .6
 dt = 0.001
 g = 9.8
 l0 = 1
@@ -61,9 +60,9 @@ m = 1
 
 attributes = {
     'm': m,
-    'max_t': T,
+    'max_t': d,
     'dt': dt,
-    'constrain_L': False,
+    'constrain_L': True,
     'save_data': False,
     'plot': False,
     'save_fig': False,
@@ -82,7 +81,7 @@ attributes = {
 
 # design the discretization of the phase space
 size = 100
-width = 3
+width = 1
 # define the region of interest
 x, y = np.meshgrid(np.linspace(-width, width, size), np.linspace(-width, width, size))
 W = np.zeros(x.shape)
@@ -122,7 +121,7 @@ plt.xlabel(r'$\phi(t)$', size=20)
 plt.ylabel(r'$\dot{\phi}(t)$', size=20, rotation=0)
 
 plt.ylim(-2, 2)
-plt.xlim(-3, 3)
+plt.xlim(-2, 2)
 plt.show()
 # plt.savefig('LF_StateIntegral.png', format='png', dpi=300)
 plt.close(fig)
