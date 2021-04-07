@@ -107,7 +107,7 @@ for i in range(x.shape[0]):
 fig = plt.figure(figsize=[16, 16])
 plt.gca().set_aspect('equal', adjustable='box')
 plt.grid()
-plt.quiver(x, y, u, v, zorder=0)
+plt.quiver(x, y, u, v, zorder=0, alpha=.25)
 plt.xlabel(r'$\phi(t)$', size=20)
 plt.ylabel(r'$\dot{\phi}(t)$', rotation=0, size=20, labelpad=20)
 

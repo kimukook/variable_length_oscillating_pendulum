@@ -91,8 +91,8 @@ class Pendulum:
         self.g = attributes.get('g', 9.8)
         self.m = attributes.get('m', 1)
 
-        self.wave_phi = wave['phi']
-        self.wave_dphi = wave['dphi']
+        self.wave_phi = np.atleast_1d(wave['phi'])
+        self.wave_dphi = np.atleast_1d(wave['dphi'])
 
         self.frequency = wave.get('frequency', np.pi/2)
         self.control_start_time = self.dt * self.wave_phi.shape[0]
@@ -198,7 +198,7 @@ class Pendulum:
 
     def variable_length_eom(self, x):
         '''
-        First compute the length for each of the states x;
+        First compute the length for the states x;
         Second compute the time-change of the equation;
          ..         .    .
         phi = [-2 * L * phi - g * sin(phi)] / L
@@ -296,7 +296,6 @@ class Pendulum:
         for step, _ in enumerate(self.time):
             if step == 0:  # assemble state -> ODE, full_state -> length
                 state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1]))
-                full_state = np.hstack((self.wave_phi[-1], self.wave_dphi[-1], self.wave_ddphi[-1]))
             else:
                 state = np.hstack((self.adap_control_phi[step - 1], self.adap_control_dphi[step - 1]))
                 full_state = np.hstack(

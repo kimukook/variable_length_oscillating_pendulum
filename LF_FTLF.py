@@ -59,7 +59,6 @@ def weighted_mu(A, P):
     return np.max(np.linalg.eig(mx)[0])
 
 
-
 def compute_d(A, P, dcs = np.linspace(5,0.1,100)):
     # TODO what is the norm using here?
     flag = False
