@@ -435,10 +435,12 @@ class Pendulum:
             adap_x_range = np.ptp(self.adap_control_phi, axis=0)
             adap_y_range = np.ptp(self.adap_control_dphi, axis=0)
 
-        r = np.max(np.hstack((adap_y_range, asym_y_range, adap_x_range, asym_x_range))) * 1.2
-
-        plt.ylim(0 - r / 2, 0 + r/2)
-        plt.xlim(0 - r / 2, 0 + r/2)
+        # r = np.max(np.hstack((adap_y_range, asym_y_range, adap_x_range, asym_x_range))) * 1.2
+        # plt.ylim(0 - r / 2, 0 + r / 2)
+        # plt.xlim(0 - r / 2, 0 + r / 2)
+        r = 2.0
+        plt.ylim(0 - r, 0 + r)
+        plt.xlim(0 - r, 0 + r)
 
         plt.xlabel(r'$\phi(t)$', fontsize=21)
         plt.ylabel(r'$\dot{\phi}(t)$', fontsize=21, rotation=0)
