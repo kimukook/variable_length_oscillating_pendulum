@@ -2,11 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pendulum import Pendulum
 from scipy import io
-from matplotlib import cm
 
 '''
 This is a script that computes the region of attraction for proving the asymptotic stability 
 of the Variable-Length Pendulum (VLP) problem. 
+
+The name 'adaptive' originated from the fact that the dense of grid points is adaptively distributed over the state 
+space. 
 
 =====================================
 Author  :  Muhan Zhao
@@ -113,54 +115,104 @@ attributes = {
 }
 
 
-size = 20
-width = 2.5
-# define the region of interest
-x, y = np.meshgrid(np.linspace(-width, width, size), np.linspace(-width, width, size))
+def roa_indicator_adaptive_grid(upper_bnd, lower_bnd, fine_trigger, attributes):
+    size = 40 if fine_trigger else 10
+    x, y = np.meshgrid(np.linspace(lower_bnd[0], upper_bnd[0], size), np.linspace(lower_bnd[1], upper_bnd[1], size))
 
-roa_indicator = np.zeros(x.shape)
-converge_slow_indicator = np.zeros(x.shape)
+    roa_indicator = np.zeros(x.shape)
+    converge_slow_indicator = np.zeros(x.shape)
 
+    for i in range(x.shape[0]):
+        print(f'i = {i}')
+        for j in range(y.shape[1]):
 
-for i in range(x.shape[0]):
+            phi = x[i, j] * np.ones(1)
+            dphi = y[i, j] * np.ones(1)
+            wave = {'phi': phi, 'dphi': dphi}
 
-    for j in range(y.shape[1]):
-        print(f'i = {i} || j = {j}')
-        phi = x[i, j] * np.ones(1)
-        dphi = y[i, j] * np.ones(1)
-
-        wave = {
-            'phi': phi,
-            'dphi': dphi,
-        }
-
-        vary_length_pendulum = execute_pendulum_control(wave, attributes)
-        roa_indicator[i, j], converge_slow_indicator[i, j] = asymptotic_stable_judger(vary_length_pendulum)
-
-
-final_indicator = np.maximum(roa_indicator, converge_slow_indicator)
+            vary_length_pendulum = execute_pendulum_control(wave, attributes)
+            roa_indicator[i, j], converge_slow_indicator[i, j] = asymptotic_stable_judger(vary_length_pendulum)
+    final_indicator = np.maximum(roa_indicator, converge_slow_indicator)
+    return x, y, final_indicator
 
 
 # plotting -
-
-bnds = np.array(([-width, width, width, -width, -width],[-width, -width, width, width, -width]))
 limit = 3
 
 fig = plt.figure(figsize=[16, 9])
-plt.grid()
-plt.axis('equal')
-mu = plt.contourf(x, y, final_indicator, levels=1, cmap=cm.gray)
-cbar = plt.colorbar(mu)
+plt.gca().set_aspect('equal', adjustable='box')
+# Show the major grid lines with dark grey lines
+plt.grid(b=True, which='major', color='#666666', linestyle='-')
+
+# Show the minor grid lines with very faint and almost transparent grey lines
+plt.minorticks_on()
+plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+
+# the first two block are region of interest, fine grid
+lower = np.array([[-1.75, -2.5], [-2.5, -2], [-2.5, 1], [1.75, 1], [-2.5, -2.5]])
+upper = np.array([[2.5, -2], [2.5, 1], [1.75, 2.5], [2.5, 2.5], [-1.75, -2]])
+fine_trigger = [0, 0, 0, 1, 1]
+
+
+# for storing the data
+coordinates = np.empty(shape=[2, 0])
+labels = np.empty(shape=[1, ])
+
+# plot the ROA: gray - stable, black - unstable
+for ii in range(lower.shape[0]):
+    print(f'========= ii = {ii} =========')
+    x, y, indicator = roa_indicator_adaptive_grid(upper[ii, :], lower[ii, :], fine_trigger[ii], attributes)
+    mu = plt.contourf(x, y, indicator, levels=[0, 0.5, 1], colors=('black', 'gray'))
+    coordinates = np.hstack((coordinates, np.vstack((x.flatten(), y.flatten()))))
+    labels = np.hstack((labels, indicator.flatten()))
+
+
+# store the data
+data = {'coordinates': coordinates,
+        'labels': labels}
+io.savemat('training_set.mat', data)
 
 plt.xlabel(r'$\phi(t)$', size=20)
 plt.ylabel(r'$\dot{\phi}(t)$', size=20, rotation=0)
+
+
+# plot the boundary of region of interest
+width = 2.5
+bnds = np.array(([-width, width, width, -width, -width],[-width, -width, width, width, -width]))
 for i in range(bnds.shape[1]-1):
     plt.plot(bnds[:, i], bnds[:, i+1], 'k')
 
-plt.ylim(-limit, limit)
-plt.xlim(-limit, limit)
-plt.savefig('ROA.png', format='png', dpi=300)
+# plot the trajectory of system states, intial point start from a unstable region
+phi_not_stable1 = np.array([-2.22368421])
+dphi_not_stable1 = np.array([-2.5])
+wave = {'phi': phi_not_stable1, 'dphi': dphi_not_stable1}
+vary_length_pendulum = execute_pendulum_control(wave, attributes)
+plt.scatter(vary_length_pendulum.asym_control_phi[0], vary_length_pendulum.asym_control_dphi[0], c='b', marker='s', s=2)
+plt.plot(vary_length_pendulum.asym_control_phi, vary_length_pendulum.asym_control_dphi, 'r--')
+
+
+# plot the stable point
+phi_not_stable1 = np.array([-1])
+dphi_not_stable1 = np.array([-1])
+wave = {'phi': phi_not_stable1, 'dphi': dphi_not_stable1}
+vary_length_pendulum = execute_pendulum_control(wave, attributes)
+plt.scatter(vary_length_pendulum.asym_control_phi[0], vary_length_pendulum.asym_control_dphi[0], c='b', marker='s', s=2)
+plt.plot(vary_length_pendulum.asym_control_phi, vary_length_pendulum.asym_control_dphi, 'r--')
+
+# plot the zoomed in unstable region
+limit = 3
+plt.ylim(-3, 3)
+plt.xlim(-5.3, 5.3)
 # plt.show()
+ax_unstable = plt.axes([.2, .5, .1, .15])
+ax_unstable.contourf(x, y, indicator, levels=[0, 0.5, 1], colors=('black', 'gray'))
+ax_unstable.set_xlim(-2.5, -1.75)
+ax_unstable.set_ylim(-2.5, -2)
+
+ax_unstable.grid()
+
+plt.savefig('adaptive_ROA.png', format='png', dpi=300)
 plt.close(fig)
 
 
