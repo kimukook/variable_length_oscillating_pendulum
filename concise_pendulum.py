@@ -56,7 +56,6 @@ if __name__ == '__main__':
     p_length = np.zeros(steps)
     p_length[0] = params.L0
 
-
     for i in range(steps-1):
         L = pendulum.length(x[:, i])
         p_length[i+1] = np.copy(L)

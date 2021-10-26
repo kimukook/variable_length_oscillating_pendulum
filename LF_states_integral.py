@@ -5,7 +5,7 @@ from pendulum import Pendulum
 from functools import partial
 from scipy import io
 '''
-This is a script that computes a specific function over the state space (phase space). The function considered here
+This is a script that computes a Lyapunov function over the state space (phase space). The function considered here
 is for proving the asymptotic stability for the variable-length pendulum problem. 
 
 =====================================
